@@ -843,33 +843,6 @@ function openChart(key,row){
   CHART_SERIES={candle,ema11,ema21,sma50,volume};
   bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume);
 
-  // Setup marker on the latest relevant day.
-  try{
-    const markerSeries=candle;
-    const markers=[];
-
-    if(row?.signal || SCANS[S.tab]){
-      const markerTime=chartDate(d.dates[last]);
-
-      if(markerTime){
-        markers.push({
-          time:markerTime,
-          position:"belowBar",
-          color:ct.up,
-          shape:"arrowUp",
-          text:row?.signal||SCANS[S.tab].t
-        });
-      }
-    }
-
-    // Lightweight Charts v5 marker API.
-    if(markers.length && typeof LightweightCharts.createSeriesMarkers==="function"){
-      LightweightCharts.createSeriesMarkers(markerSeries,markers);
-    }
-  }catch(_){}
-
-
-
   const resize=()=>{
     if(!LW) return;
 
