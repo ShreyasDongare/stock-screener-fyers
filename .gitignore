@@ -1,1 +1,22 @@
 data/
+
+fyers_token.txt
+.env
+.venv-fyers/
+__pycache__/
+
+# FYERS local files
+fyersApi.log
+fyersRequests.log
+fyers_login.py
+test_fyers.py
+fyers_420_test.py
+SBIN_420.csv
+
+# FYERS market-data cache / local universe
+data/fyers_cache/
+fyers_universe_all.csv
+# Temporary FYERS test scripts
+fyers_bse_symbols_test.py
+fyers_symbols_test.py
+fyers_universe_test.py
