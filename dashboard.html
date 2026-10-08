@@ -729,7 +729,6 @@ function renderChartWatchlist(activeKey){
   });
 }
 function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
-  const host=$("chartHost");
   const stats=$("chartStats");
 
   const dates=(d.dates||[]).map(x=>String(x).slice(0,10));
@@ -738,11 +737,9 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
   const pctByTime={};
 
   for(let i=1;i<dates.length;i++){
-    if(
-      Number.isFinite(closes[i]) &&
-      Number.isFinite(closes[i-1]) &&
-      closes[i-1]!==0
-    ){
+    if(Number.isFinite(closes[i]) &&
+       Number.isFinite(closes[i-1]) &&
+       closes[i-1]!==0){
       pctByTime[dates[i]]=(closes[i]/closes[i-1]-1)*100;
     }
   }
@@ -764,7 +761,7 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
   };
 
   const latestIdx=dates.length-1;
-  const latestDate=latestIdx>=0?dates[latestIdx]:"";
+  const latestDate=latestIdx>=0 ? dates[latestIdx] : "";
 
   const latestCd=latestIdx>=0 ? {
     open:Number(d.open[latestIdx]),
@@ -777,8 +774,7 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
     if(!cd){
       return '<span class="chart-stat-group">'+
         '<span class="chart-stat-label">'+label+'</span>'+
-        '<span>—</span>'+
-        '</span>';
+        '<span>—</span></span>';
     }
 
     return '<span class="chart-stat-group">'+
@@ -791,54 +787,23 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
       '</span>';
   };
 
-  function renderStats(crossCd=null,crossPct=NaN){
-    if(!stats) return;
+  // LAST = previous completed candle
+  const lastIdx=latestIdx>0 ? latestIdx-1 : latestIdx;
+  const lastDate=lastIdx>=0 ? dates[lastIdx] : "";
 
+  const lastCd=lastIdx>=0 ? {
+    open:Number(d.open[lastIdx]),
+    high:Number(d.high[lastIdx]),
+    low:Number(d.low[lastIdx]),
+    close:Number(d.close[lastIdx])
+  } : null;
+
+  // CURRENT = latest/current candle
+  if(stats){
     stats.innerHTML=
-      candleHtml(
-        "LAST",
-        latestCd,
-        pctByTime[latestDate]
-      )+
-      (
-        crossCd
-        ? candleHtml("CROSS",crossCd,crossPct)
-        : '<span class="chart-stat-group">'+
-            '<span class="chart-stat-label">CROSS</span>'+
-            '<span>—</span>'+
-          '</span>'
-      );
+      candleHtml("LAST",lastCd,pctByTime[lastDate])+
+      candleHtml("CURRENT",latestCd,pctByTime[latestDate]);
   }
-
-  renderStats();
-
-  chart.subscribeCrosshairMove(p=>{
-    if(!stats) return;
-
-    if(
-      !p ||
-      !p.point ||
-      p.point.x<0 ||
-      p.point.y<0 ||
-      p.point.x>host.clientWidth ||
-      p.point.y>host.clientHeight ||
-      !p.time
-    ){
-      renderStats();
-      return;
-    }
-
-    const cd=p.seriesData.get(candle);
-
-    if(!cd){
-      renderStats();
-      return;
-    }
-
-    const key=String(p.time).slice(0,10);
-
-    renderStats(cd,pctByTime[key]);
-  });
 }
 
 function openChart(key,row){
