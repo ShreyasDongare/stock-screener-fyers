@@ -1517,7 +1517,7 @@ function openChart(key,row){
   const host=$("chartHost");
 
   const chart=LightweightCharts.createChart(host,{
-    width:host.clientWidth,height:host.clientHeight,
+    autoSize:true,
     layout:{background:{type:LightweightCharts.ColorType.Solid,color:ct.bg},textColor:ct.text,fontFamily:"IBM Plex Mono, monospace",fontSize:11},
     grid:{vertLines:{color:ct.grid},horzLines:{color:ct.grid}},
     rightPriceScale:{borderColor:ct.border,scaleMargins:{top:.06,bottom:.24},minimumWidth:74},
@@ -1529,7 +1529,19 @@ function openChart(key,row){
   });
   LW=chart;
 
-  const candles=d.dates.map((time,i)=>({time,open:+d.open[i],high:+d.high[i],low:+d.low[i],close:+d.close[i]})).filter(x=>[x.open,x.high,x.low,x.close].every(Number.isFinite));
+  // Normalize EOD dates for Lightweight Charts v5.
+  const chartDate=(value)=>{
+    const s=String(value||"").slice(0,10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  };
+
+  const candles=d.dates.map((time,i)=>({
+    time:chartDate(time),
+    open:+d.open[i],
+    high:+d.high[i],
+    low:+d.low[i],
+    close:+d.close[i]
+  })).filter(x=>x.time&&[x.open,x.high,x.low,x.close].every(Number.isFinite));
   const candle=chart.addSeries(LightweightCharts.CandlestickSeries,{
     upColor:ct.up,downColor:ct.down,borderUpColor:ct.up,borderDownColor:ct.down,wickUpColor:ct.up,wickDownColor:ct.down,
     priceLineVisible:false,lastValueVisible:true
@@ -1539,9 +1551,17 @@ function openChart(key,row){
   const ema11=chart.addSeries(LightweightCharts.LineSeries,{color:ct.ema11,lineWidth:1,lastValueVisible:false,priceLineVisible:false});
   const ema21=chart.addSeries(LightweightCharts.LineSeries,{color:ct.ema21,lineWidth:1,lastValueVisible:false,priceLineVisible:false});
   const sma50=chart.addSeries(LightweightCharts.LineSeries,{color:ct.sma50,lineWidth:1,lastValueVisible:false,priceLineVisible:false});
-  ema11.setData(d.dates.map((time,i)=>({time,value:+d.ema11[i]})).filter(x=>Number.isFinite(x.value)));
-  ema21.setData(d.dates.map((time,i)=>({time,value:+d.ema21[i]})).filter(x=>Number.isFinite(x.value)));
-  sma50.setData(d.dates.map((time,i)=>({time,value:+d.sma50[i]})).filter(x=>Number.isFinite(x.value) && x.value>0));
+  ema11.setData(d.dates.map((time,i)=>({
+    time:chartDate(time),value:+d.ema11[i]
+  })).filter(x=>x.time&&Number.isFinite(x.value)));
+
+  ema21.setData(d.dates.map((time,i)=>({
+    time:chartDate(time),value:+d.ema21[i]
+  })).filter(x=>x.time&&Number.isFinite(x.value)));
+
+  sma50.setData(d.dates.map((time,i)=>({
+    time:chartDate(time),value:+d.sma50[i]
+  })).filter(x=>x.time&&Number.isFinite(x.value) && x.value>0));
 
   const volume=chart.addSeries(LightweightCharts.HistogramSeries,{
     priceFormat:{type:"volume"},priceScaleId:"volume",lastValueVisible:false,priceLineVisible:false,
@@ -1549,8 +1569,10 @@ function openChart(key,row){
   });
   volume.priceScale().applyOptions({scaleMargins:{top:.83,bottom:0},borderVisible:false});
   volume.setData(d.dates.map((time,i)=>({
-    time,value:+d.volume[i],color:+d.close[i]>=+d.open[i]?ct.up:ct.down
-  })).filter(x=>Number.isFinite(x.value)));
+    time:chartDate(time),
+    value:+d.volume[i],
+    color:+d.close[i]>=+d.open[i]?ct.up:ct.down
+  })).filter(x=>x.time&&Number.isFinite(x.value)));
 
   CHART_SERIES={candle,ema11,ema21,sma50,volume};
   bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume);
@@ -1559,21 +1581,65 @@ function openChart(key,row){
   try{
     const markerSeries=candle;
     const markers=[];
+
     if(row?.signal || SCANS[S.tab]){
-      markers.push({time:d.dates[last],position:"belowBar",color:ct.up,shape:"arrowUp",text:row?.signal||SCANS[S.tab].t});
+      const markerTime=chartDate(d.dates[last]);
+
+      if(markerTime){
+        markers.push({
+          time:markerTime,
+          position:"belowBar",
+          color:ct.up,
+          shape:"arrowUp",
+          text:row?.signal||SCANS[S.tab].t
+        });
+      }
     }
-    if(markers.length) markerSeries.setMarkers(markers);
+
+    // Lightweight Charts v5 marker API.
+    if(markers.length && typeof LightweightCharts.createSeriesMarkers==="function"){
+      LightweightCharts.createSeriesMarkers(markerSeries,markers);
+    }
   }catch(_){}
 
 
 
-  const resize=()=>{if(LW)LW.applyOptions({width:host.clientWidth,height:host.clientHeight});};
-  const ro=new ResizeObserver(()=>{resize();});ro.observe(host);
-  // Default view: latest 120 trading days, with 12-candle right breathing room.
-  // Vertical chart margins are controlled by the price scale: 18% top / 12% bottom.
-  chart.applyOptions({rightPriceScale:{scaleMargins:{top:.18,bottom:.12}}});
-  chart.timeScale().setVisibleLogicalRange({from:Math.max(0,n-120),to:n+12});
-  requestAnimationFrame(resize);
+  const resize=()=>{
+    if(!LW) return;
+
+    const w=Math.max(1,host.clientWidth);
+    const h=Math.max(1,host.clientHeight);
+
+    try{
+      LW.resize(w,h,true);
+    }catch(_){
+      try{LW.applyOptions({width:w,height:h});}catch(__){}
+    }
+  };
+
+  const ro=new ResizeObserver(()=>{resize();});
+  ro.observe(host);
+
+  // Default view: latest 120 trading days, with right-side breathing room.
+  chart.applyOptions({
+    rightPriceScale:{scaleMargins:{top:.18,bottom:.12}}
+  });
+
+  requestAnimationFrame(()=>{
+    resize();
+
+    try{
+      const from=Math.max(0,n-120);
+      chart.timeScale().setVisibleLogicalRange({
+        from,
+        to:n+12
+      });
+    }catch(_){
+      try{chart.timeScale().fitContent();}catch(__){}
+    }
+
+    requestAnimationFrame(resize);
+  });
 }
 const WATCHLIST_COLORS=[["red","Red"],["orange","Orange"],["yellow","Yellow"],["green","Green"],["blue","Blue"],["purple","Purple"]];
 
