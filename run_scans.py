@@ -287,7 +287,7 @@ def analyse(key, g, review_keys, recent_keys):
 
 
 def main():
-    df = pd.read_csv(DATA / "prices.csv.gz").sort_values(["key", "date"])
+    df = pd.read_csv(DATA / "prices_fyers.csv.gz").sort_values(["key", "date"])
     ev = pd.read_csv(DATA / "events.csv")
     dates = sorted(df["date"].unique())
     last = dates[-1]
