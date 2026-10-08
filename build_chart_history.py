@@ -37,7 +37,10 @@ def build_one(key, df):
         "volume": pd.to_numeric(x["volume"], errors="coerce").fillna(0).astype("int64").tolist(),
         "ema11": x["ema11"].round(4).tolist(),
         "ema21": x["ema21"].round(4).tolist(),
-        "sma50": x["sma50"].round(4).where(x["sma50"].notna(), None).tolist(),
+        "sma50": [
+            round(float(v), 4) if pd.notna(v) else None
+            for v in x["sma50"]
+        ],
     }
 
 
