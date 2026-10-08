@@ -737,7 +737,7 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
       ? Number(v).toLocaleString("en-IN",{maximumFractionDigits:2})
       : "—";
 
-  // Candle % = current close vs previous candle close
+  // Last = latest candle % vs previous candle close
   const pctForIndex=i=>{
     if(i<=0) return NaN;
 
@@ -764,25 +764,37 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
            label+' <b>('+value+')</b></span>';
   };
 
-  const render=(cd,index)=>{
+  const render=({cd,index}={})=>{
     if(!stats || !cd || index<0) return;
 
+    // OHLC color follows candle direction
+    const open=Number(cd.open);
+    const close=Number(cd.close);
+
+    const candleClass=
+      Number.isFinite(open) &&
+      Number.isFinite(close) &&
+      close>=open
+        ? "positive"
+        : "negative";
+
     stats.innerHTML=
-      '<span class="chart-stat-pill">O <b>'+
-        fmt(cd.open)+
-      '</b></span>'+
 
-      '<span class="chart-stat-pill">H <b>'+
-        fmt(cd.high)+
-      '</b></span>'+
+      '<span class="chart-stat-pill '+candleClass+'">'+
+        'O <b>'+fmt(cd.open)+'</b>'+
+      '</span>'+
 
-      '<span class="chart-stat-pill">L <b>'+
-        fmt(cd.low)+
-      '</b></span>'+
+      '<span class="chart-stat-pill '+candleClass+'">'+
+        'H <b>'+fmt(cd.high)+'</b>'+
+      '</span>'+
 
-      '<span class="chart-stat-pill">C <b>'+
-        fmt(cd.close)+
-      '</b></span>'+
+      '<span class="chart-stat-pill '+candleClass+'">'+
+        'L <b>'+fmt(cd.low)+'</b>'+
+      '</span>'+
+
+      '<span class="chart-stat-pill '+candleClass+'">'+
+        'C <b>'+fmt(cd.close)+'</b>'+
+      '</span>'+
 
       '<span class="chart-stat-gap"></span>'+
 
@@ -797,19 +809,22 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
       );
   };
 
-  // Initial display = latest candle
   const lastIndex=d.close.length-1;
 
+  // Initial state = latest candle
   if(lastIndex>=0){
     render({
-      open:d.open[lastIndex],
-      high:d.high[lastIndex],
-      low:d.low[lastIndex],
-      close:d.close[lastIndex]
-    },lastIndex);
+      cd:{
+        open:d.open[lastIndex],
+        high:d.high[lastIndex],
+        low:d.low[lastIndex],
+        close:d.close[lastIndex]
+      },
+      index:lastIndex
+    });
   }
 
-  // Hover/crosshair: CURRENT + O/H/L/C follow hovered candle
+  // Hover / crosshair
   chart.subscribeCrosshairMove(p=>{
     if(
       !p ||
@@ -820,20 +835,37 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
       p.point.y>host.clientHeight ||
       !p.time
     ){
-      // Mouse leaves chart -> return to latest candle
+      // No candle under crosshair -> latest candle
       if(lastIndex>=0){
         render({
-          open:d.open[lastIndex],
-          high:d.high[lastIndex],
-          low:d.low[lastIndex],
-          close:d.close[lastIndex]
-        },lastIndex);
+          cd:{
+            open:d.open[lastIndex],
+            high:d.high[lastIndex],
+            low:d.low[lastIndex],
+            close:d.close[lastIndex]
+          },
+          index:lastIndex
+        });
       }
       return;
     }
 
     const cd=p.seriesData.get(candle);
-    if(!cd) return;
+
+    if(!cd){
+      if(lastIndex>=0){
+        render({
+          cd:{
+            open:d.open[lastIndex],
+            high:d.high[lastIndex],
+            low:d.low[lastIndex],
+            close:d.close[lastIndex]
+          },
+          index:lastIndex
+        });
+      }
+      return;
+    }
 
     const time=String(p.time).slice(0,10);
 
@@ -843,12 +875,16 @@ function bindChartTooltip(chart,d,candle,ema11,ema21,sma50,volume){
 
     if(index<0) return;
 
+    // Hovered candle becomes CURRENT
     render({
-      open:Number(cd.open),
-      high:Number(cd.high),
-      low:Number(cd.low),
-      close:Number(cd.close)
-    },index);
+      cd:{
+        open:Number(cd.open),
+        high:Number(cd.high),
+        low:Number(cd.low),
+        close:Number(cd.close)
+      },
+      index
+    });
   });
 }
 
